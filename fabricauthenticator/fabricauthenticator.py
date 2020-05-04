@@ -11,6 +11,7 @@ from ldap3 import Connection, Server, ALL
 
 JUPYTERHUB_COU = os.getenv('FABRIC_COU_JUPYTERHUB', 'CO:COU:Jupyterhub:members:active')
 
+
 class FabricAuthenticator(oauthenticator.CILogonOAuthenticator):
     """ The FabricAuthenticator inherits from CILogonAuthenticator.
     """
@@ -36,11 +37,10 @@ class FabricAuthenticator(oauthenticator.CILogonOAuthenticator):
         if not auth_state:
             return
         spawner.environment['CILOGON_TOKEN_RESPONSE'] = auth_state['token_response']
-        spawner.environment['USER_ACCESS_TOKEN'] \
-            = auth_state['token_response'].get('access_token', '')
-        spawner.environment['USER_ID_TOKEN'] \
+        # spawner.environment['CILOGON_ACCESS_TOKEN'] = auth_state['token_response'].get('access_token', '')
+        spawner.environment['CILOGON_ID_TOKEN'] \
             = auth_state['token_response'].get('id_token', '')
-        spawner.environment['USER_REFRESH_TOKEN'] \
+        spawner.environment['CILOGON_REFRESH_TOKEN'] \
             = auth_state['token_response'].get('refresh_token', '')
 
     def is_in_allowed_cou(self, username):
