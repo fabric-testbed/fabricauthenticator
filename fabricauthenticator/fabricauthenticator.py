@@ -36,8 +36,6 @@ class FabricAuthenticator(oauthenticator.CILogonOAuthenticator):
         self.log.debug("pre_spawn_start: {}".format(user.name))
         if not auth_state:
             return
-        spawner.environment['CILOGON_TOKEN_RESPONSE'] = auth_state['token_response']
-        # spawner.environment['CILOGON_ACCESS_TOKEN'] = auth_state['token_response'].get('access_token', '')
         spawner.environment['CILOGON_ID_TOKEN'] \
             = auth_state['token_response'].get('id_token', '')
         spawner.environment['CILOGON_REFRESH_TOKEN'] \
