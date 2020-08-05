@@ -9,6 +9,7 @@ import oauthenticator
 from tornado import web
 from ldap3 import Connection, Server, ALL
 
+
 JUPYTERHUB_COU = os.getenv('FABRIC_COU_JUPYTERHUB', 'CO:COU:Jupyterhub:members:active')
 
 
@@ -20,12 +21,10 @@ class FabricAuthenticator(oauthenticator.CILogonOAuthenticator):
             then check if user has JUPYTERHUB_COU attribute.
         """
         userdict = await super(FabricAuthenticator, self).authenticate(handler, data)
-
         # check COU
         if not self.is_in_allowed_cou(userdict["name"]):
             self.log.warn("FABRIC user {} is not in {}".format(userdict["name"], JUPYTERHUB_COU))
             raise web.HTTPError(403, "Access not allowed")
-
         self.log.debug("FABRIC user authenticated")
         return userdict
 
@@ -40,6 +39,18 @@ class FabricAuthenticator(oauthenticator.CILogonOAuthenticator):
             = auth_state['token_response'].get('id_token', '')
         spawner.environment['CILOGON_REFRESH_TOKEN'] \
             = auth_state['token_response'].get('refresh_token', '')
+
+    async def refresh_user(self, user, handler=None):
+        """ Force refresh of auth prior to spawn
+        (based on setting c.Authenticator.refresh_pre_spawn = True)
+        to ensure that user get a new refresh token.
+        """
+        self.log.debug("[refresh_user] always trigger refresh authentication")
+        await handler.stop_single_user(user, user.spawner.name)
+        handler.clear_cookie("jupyterhub-hub-login")
+        handler.clear_cookie("jupyterhub-session-id")
+        handler.redirect('/hub/logout')
+        return True
 
     def is_in_allowed_cou(self, username):
         """ Checks if user is in Comanage JUPYTERHUB COU.
@@ -86,4 +97,3 @@ class FabricAuthenticator(oauthenticator.CILogonOAuthenticator):
             attributes = []
         conn.unbind()
         return attributes
-
