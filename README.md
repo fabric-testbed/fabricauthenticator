@@ -1,3 +1,5 @@
+[![Requirements Status](https://requires.io/github/fabric-testbed/fabricauthenticator/requirements.svg?branch=vouch)](https://requires.io/github/fabric-testbed/fabricauthenticator/requirements/?branch=vouch)
+
 # Fabric Authenticator for Jupyterhub
 
 The authenticator for Fabric Testbed Jupyterhub
