@@ -1,6 +1,6 @@
 import setuptools
 
-VERSION = "0.0.3.0"
+VERSION = "0.0.6"
 
 with open("README.md", "r") as fh:
     long_description = fh.read()
@@ -8,8 +8,8 @@ with open("README.md", "r") as fh:
 setuptools.setup(
     name="fabricauthenticator",
     version=VERSION,
-    author="Erica Fu",
-    author_email="ericafu@renci.org",
+    author="Erica Fu, Komal Thareja",
+    author_email="ericafu@renci.org, kthare10@renci.org",
     description="Fabric Authenticator for Jupyterhub",
     long_description=long_description,
     long_description_content_type="text/markdown",

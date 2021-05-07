@@ -39,6 +39,8 @@ class FabricAuthenticator(oauthenticator.CILogonOAuthenticator):
             = auth_state['token_response'].get('id_token', '')
         spawner.environment['CILOGON_REFRESH_TOKEN'] \
             = auth_state['token_response'].get('refresh_token', '')
+        # setup environment
+        spawner.environment['NB_USER'] = user.name
 
     async def refresh_user(self, user, handler=None):
         """ Force refresh of auth prior to spawn
