@@ -40,14 +40,18 @@ class FabricAuthenticator(oauthenticator.CILogonOAuthenticator):
         spawner.environment['CILOGON_REFRESH_TOKEN'] \
             = auth_state['token_response'].get('refresh_token', '')
         # setup environment
-        spawner.environment['NB_USER'] = user.name
+        nb_user = str(user.name)
+        if "@" in nb_user:
+            nb_user = nb_user.split("@", 1)[0]
+        spawner.environment['NB_USER'] = nb_user
+        self.log.debug(f"Environment: {spawner.environment}")
 
     async def refresh_user(self, user, handler=None):
         """ Force refresh of auth prior to spawn
         (based on setting c.Authenticator.refresh_pre_spawn = True)
         to ensure that user get a new refresh token.
         """
-        self.log.debug("[refresh_user] always trigger refresh authentication")
+        self.log.info("[refresh_user] always trigger refresh authentication")
         await handler.stop_single_user(user, user.spawner.name)
         handler.clear_cookie("jupyterhub-hub-login")
         handler.clear_cookie("jupyterhub-session-id")
