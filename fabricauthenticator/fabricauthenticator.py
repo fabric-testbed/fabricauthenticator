@@ -22,7 +22,8 @@ class FabricAuthenticator(oauthenticator.CILogonOAuthenticator):
         """
         userdict = await super(FabricAuthenticator, self).authenticate(handler, data)
         # check COU
-        if not self.is_in_allowed_cou(userdict["name"]):
+        user_email = userdict["auth_state"]["cilogon_user"]["email"]
+        if not self.is_in_allowed_cou(user_email):
             self.log.warn("FABRIC user {} is not in {}".format(userdict["name"], JUPYTERHUB_COU))
             raise web.HTTPError(403, "Access not allowed")
         self.log.debug("FABRIC user authenticated")
@@ -58,16 +59,16 @@ class FabricAuthenticator(oauthenticator.CILogonOAuthenticator):
         handler.redirect('/hub/logout')
         return True
 
-    def is_in_allowed_cou(self, username):
+    def is_in_allowed_cou(self, email):
         """ Checks if user is in Comanage JUPYTERHUB COU.
 
             Args:
-                username: i.e. ePPN
+                email: i.e. email
 
             Returns:
                 Boolean value: True if username has attribute of JUPYTERHUB_COU, False otherwise
         """
-        attributelist = self.get_ldap_attributes(username)
+        attributelist = self.get_ldap_attributes(email)
         if attributelist:
             self.log.debug("attributelist acquired.")
             if attributelist['isMemberOf']:
@@ -77,11 +78,11 @@ class FabricAuthenticator(oauthenticator.CILogonOAuthenticator):
         return False
 
     @staticmethod
-    def get_ldap_attributes(username):
+    def get_ldap_attributes(email):
         """ Get the ldap attributes from Fabric CILogon instance.
 
             Args:
-                username: i.e. ePPN
+                email: i.e. email
 
             Returns:
                 The attributes list
@@ -90,7 +91,7 @@ class FabricAuthenticator(oauthenticator.CILogonOAuthenticator):
         ldap_user = os.getenv('LDAP_USER', '')
         ldap_password = os.getenv('LDAP_PASSWORD', '')
         ldap_search_base = os.getenv('LDAP_SEARCH_BASE', '')
-        ldap_search_filter = '(eduPersonPrincipalName=' + username + ')'
+        ldap_search_filter = '(mail=' + email + ')'
         conn = Connection(server, ldap_user, ldap_password, auto_bind=True)
         profile_found = conn.search(ldap_search_base,
                                     ldap_search_filter,
