@@ -1,13 +1,12 @@
 import setuptools
-
-VERSION = "0.0.11"
+from fabricauthenticator import __VERSION__
 
 with open("README.md", "r") as fh:
     long_description = fh.read()
 
 setuptools.setup(
     name="fabricauthenticator",
-    version=VERSION,
+    version=__VERSION__,
     author="Erica Fu, Komal Thareja",
     author_email="ericafu@renci.org, kthare10@renci.org",
     description="Fabric Authenticator for Jupyterhub",
