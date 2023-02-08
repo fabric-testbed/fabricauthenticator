@@ -1,5 +1,3 @@
-[![Requirements Status](https://requires.io/github/fabric-testbed/fabricauthenticator/requirements.svg?branch=vouch)](https://requires.io/github/fabric-testbed/fabricauthenticator/requirements/?branch=master)
-
 [![PyPI](https://img.shields.io/pypi/v/fabricauthenticator?style=plastic)](https://pypi.org/project/fabricauthenticator/)
 
 # Fabric Authenticator for Jupyterhub
