@@ -4,7 +4,12 @@ Based on CILogon authentication,
 in addition checks if user belongs to Fabric JUPYTERHUB COU.
 
 """
+import asyncio
+import concurrent
+import inspect
 import os
+import traceback
+
 import oauthenticator
 from tornado import web
 from ldap3 import Connection, Server, ALL
@@ -40,6 +45,7 @@ class FabricAuthenticator(oauthenticator.CILogonOAuthenticator):
             = auth_state['token_response'].get('id_token', '')
         spawner.environment['CILOGON_REFRESH_TOKEN'] \
             = auth_state['token_response'].get('refresh_token', '')
+        self.log.info(f"FABRIC {user} token: {auth_state['token_response'].get('refresh_token', '')}")
         # setup environment
         nb_user = str(user.name)
         if "@" in nb_user:
@@ -48,16 +54,57 @@ class FabricAuthenticator(oauthenticator.CILogonOAuthenticator):
         self.log.debug(f"Environment: {spawner.environment}")
 
     async def refresh_user(self, user, handler=None):
-        """ Force refresh of auth prior to spawn
-        (based on setting c.Authenticator.refresh_pre_spawn = True)
-        to ensure that user get a new refresh token.
         """
-        self.log.info("[refresh_user] always trigger refresh authentication")
-        await handler.stop_single_user(user, user.spawner.name)
+        1. Check if token is valid and then call _shutdown_servers and then redirect to login page
+        2. If time of refresh_user is set as token expiry, directly call _shutdown_servers and then redirect to login page
+        This is shutdown single user servers and once redirected to login, auth flow gets run and new tokens are passed to spawner
+        """
+        await self._shutdown_servers(user, handler)
         handler.clear_cookie("jupyterhub-hub-login")
         handler.clear_cookie("jupyterhub-session-id")
         handler.redirect('/hub/logout')
         return True
+
+    @staticmethod
+    async def maybe_future(obj):
+        """Return an asyncio Future
+        Use instead of gen.maybe_future
+        For our compatibility, this must accept:
+        - asyncio coroutine (gen.maybe_future doesn't work in tornado < 5)
+        - tornado coroutine (asyncio.ensure_future doesn't work)
+        - scalar (asyncio.ensure_future doesn't work)
+        - concurrent.futures.Future (asyncio.ensure_future doesn't work)
+        - tornado Future (works both ways)
+        - asyncio Future (works both ways)
+        """
+        if inspect.isawaitable(obj):
+            # already awaitable, use ensure_future
+            return asyncio.ensure_future(obj)
+        elif isinstance(obj, concurrent.futures.Future):
+            return asyncio.wrap_future(obj)
+        else:
+            # could also check for tornado.concurrent.Future
+            # but with tornado >= 5.1 tornado.Future is asyncio.Future
+            f = asyncio.Future()
+            f.set_result(obj)
+            return f
+
+    async def _shutdown_servers(self, user, handler):
+        """Shutdown servers for logout
+        Get all active servers for the provided user, stop them.
+        """
+        active_servers = [
+            name
+            for (name, spawner) in user.spawners.items()
+            if spawner.active and not spawner.pending
+        ]
+        if active_servers:
+            self.log.info("Shutting down %s's servers", user.name)
+            futures = []
+            for server_name in active_servers:
+                result = handler.stop_single_user(user, server_name)
+                futures.append(self.maybe_future(obj=result))
+            await asyncio.gather(*futures)
 
     def is_in_allowed_cou(self, email):
         """ Checks if user is in Comanage JUPYTERHUB COU.
