@@ -28,7 +28,8 @@ class FabricAuthenticator(oauthenticator.CILogonOAuthenticator):
         userdict = await super(FabricAuthenticator, self).authenticate(handler, data)
         # check COU
         user_email = userdict["auth_state"]["cilogon_user"]["email"]
-        if not self.is_in_allowed_cou(user_email):
+        user_sub = userdict["auth_state"]["cilogon_user"]["sub"]
+        if not self.is_in_allowed_cou(user_email, user_sub):
             self.log.warn("FABRIC user {} is not in {}".format(userdict["name"], JUPYTERHUB_COU))
             raise web.HTTPError(403, "Access not allowed")
         self.log.debug("FABRIC user authenticated")
@@ -106,7 +107,7 @@ class FabricAuthenticator(oauthenticator.CILogonOAuthenticator):
                 futures.append(self.maybe_future(obj=result))
             await asyncio.gather(*futures)
 
-    def is_in_allowed_cou(self, email):
+    def is_in_allowed_cou(self, email, sub):
         """ Checks if user is in Comanage JUPYTERHUB COU.
 
             Args:
@@ -118,6 +119,9 @@ class FabricAuthenticator(oauthenticator.CILogonOAuthenticator):
         attributelist = self.get_ldap_attributes(email)
         if attributelist:
             self.log.debug("attributelist acquired.")
+            if sub is not None and attributelist['uid']:
+                if sub not in attributelist['uid']:
+                    return False
             if attributelist['isMemberOf']:
                 for attribute in attributelist['isMemberOf']:
                     if attribute == JUPYTERHUB_COU:
@@ -143,7 +147,7 @@ class FabricAuthenticator(oauthenticator.CILogonOAuthenticator):
         profile_found = conn.search(ldap_search_base,
                                     ldap_search_filter,
                                     attributes=[
-                                        'isMemberOf',
+                                        'isMemberOf', 'uid'
                                     ])
         if profile_found:
             attributes = conn.entries[0]
