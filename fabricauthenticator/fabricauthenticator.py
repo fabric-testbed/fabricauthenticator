@@ -112,6 +112,7 @@ class FabricAuthenticator(oauthenticator.CILogonOAuthenticator):
 
             Args:
                 email: i.e. email
+                sub: user sub
 
             Returns:
                 Boolean value: True if username has attribute of JUPYTERHUB_COU, False otherwise
@@ -119,6 +120,8 @@ class FabricAuthenticator(oauthenticator.CILogonOAuthenticator):
         attributelist = self.get_ldap_attributes(email)
         if attributelist:
             self.log.debug("attributelist acquired.")
+            # Check if OIDC sub is registered with FABRIC;
+            # protect against Idps which use same email addresses
             if sub is not None and attributelist['uid']:
                 if sub not in attributelist['uid']:
                     return False
