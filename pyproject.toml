@@ -15,7 +15,7 @@ dynamic = ["version"]
 
 keywords = ["Swagger", "Fabric OAuth Authenticator"]
 
-requires-python = '>=3.9'
+requires-python = '>=3.7'
 dependencies = [
     "jupyterhub>=1.0",
     "oauthenticator",
