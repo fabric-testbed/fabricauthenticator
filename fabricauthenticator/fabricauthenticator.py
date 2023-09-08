@@ -8,8 +8,10 @@ import asyncio
 import concurrent
 import inspect
 import os
+from typing import Union
 
 import oauthenticator
+from ldap3.abstract import entry
 from tornado import web
 from ldap3 import Connection, Server, ALL
 
@@ -26,8 +28,11 @@ class FabricAuthenticator(oauthenticator.CILogonOAuthenticator):
         """
         userdict = await super(FabricAuthenticator, self).authenticate(handler, data)
         # check COU
-        user_email = userdict["auth_state"]["cilogon_user"]["email"]
-        user_sub = userdict["auth_state"]["cilogon_user"]["sub"]
+        auth_state = userdict.get("auth_state")
+        cilogon_user = auth_state.get("cilogon_user")
+
+        user_email = cilogon_user.get("email")
+        user_sub = cilogon_user.get("sub")
         if not self.is_in_allowed_cou(user_email, user_sub):
             self.log.warn("FABRIC user {} is not in {}".format(userdict["name"], JUPYTERHUB_COU))
             raise web.HTTPError(403, "Access not allowed")
@@ -131,7 +136,7 @@ class FabricAuthenticator(oauthenticator.CILogonOAuthenticator):
         return False
 
     @staticmethod
-    def get_ldap_attributes(email, sub):
+    def get_ldap_attributes(email, sub) -> Union[entry.Entry, None]:
         """ Get the ldap attributes from Fabric CILogon instance.
 
             Args:
@@ -159,7 +164,7 @@ class FabricAuthenticator(oauthenticator.CILogonOAuthenticator):
         if profile_found:
             attributes = conn.entries[0]
         else:
-            attributes = []
+            attributes = None
         conn.unbind()
         return attributes
 
@@ -172,6 +177,7 @@ class FabricAuthenticator(oauthenticator.CILogonOAuthenticator):
         https://fabric-testbed.atlassian.net/browse/FIP-715
         https://fabric-testbed.atlassian.net/browse/FIP-724
         """
+        username = None
         for claim in claimlist:
             username = resp_json.get(claim)
             if username:
@@ -183,8 +189,8 @@ class FabricAuthenticator(oauthenticator.CILogonOAuthenticator):
         if sub is not None:
             attributelist = self.get_ldap_attributes(email, sub)
             if attributelist is not None:
-                self.log.debug("attributelist acquired for determining user name.")
-                username = attributelist['email']
+                self.log.info(f"attributelist acquired for determining user name. {attributelist}")
+                username = str(attributelist['mail'])
 
         if not username:
             if len(claimlist) < 2:
@@ -200,3 +206,4 @@ class FabricAuthenticator(oauthenticator.CILogonOAuthenticator):
                     sorted(resp_json.keys()),
                 )
             raise web.HTTPError(500, "Failed to get username from CILogon")
+        return username
