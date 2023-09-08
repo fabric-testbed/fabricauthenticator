@@ -8,9 +8,10 @@ import asyncio
 import concurrent
 import inspect
 import os
-import traceback
+from typing import Union
 
 import oauthenticator
+from ldap3.abstract import entry
 from tornado import web
 from ldap3 import Connection, Server, ALL
 
@@ -27,8 +28,11 @@ class FabricAuthenticator(oauthenticator.CILogonOAuthenticator):
         """
         userdict = await super(FabricAuthenticator, self).authenticate(handler, data)
         # check COU
-        user_email = userdict["auth_state"]["cilogon_user"]["email"]
-        user_sub = userdict["auth_state"]["cilogon_user"]["sub"]
+        auth_state = userdict.get("auth_state")
+        cilogon_user = auth_state.get("cilogon_user")
+
+        user_email = cilogon_user.get("email")
+        user_sub = cilogon_user.get("sub")
         if not self.is_in_allowed_cou(user_email, user_sub):
             self.log.warn("FABRIC user {} is not in {}".format(userdict["name"], JUPYTERHUB_COU))
             raise web.HTTPError(403, "Access not allowed")
@@ -117,7 +121,7 @@ class FabricAuthenticator(oauthenticator.CILogonOAuthenticator):
             Returns:
                 Boolean value: True if username has attribute of JUPYTERHUB_COU, False otherwise
         """
-        attributelist = self.get_ldap_attributes(email)
+        attributelist = self.get_ldap_attributes(email, sub)
         if attributelist:
             self.log.debug("attributelist acquired.")
             # Check if OIDC sub is registered with FABRIC;
@@ -132,11 +136,12 @@ class FabricAuthenticator(oauthenticator.CILogonOAuthenticator):
         return False
 
     @staticmethod
-    def get_ldap_attributes(email):
+    def get_ldap_attributes(email, sub) -> Union[entry.Entry, None]:
         """ Get the ldap attributes from Fabric CILogon instance.
 
             Args:
                 email: i.e. email
+                sub: i.e. sub
 
             Returns:
                 The attributes list
@@ -145,16 +150,60 @@ class FabricAuthenticator(oauthenticator.CILogonOAuthenticator):
         ldap_user = os.getenv('LDAP_USER', '')
         ldap_password = os.getenv('LDAP_PASSWORD', '')
         ldap_search_base = os.getenv('LDAP_SEARCH_BASE', '')
-        ldap_search_filter = '(mail=' + email + ')'
+        # Always search on email if available
+        if email is not None:
+            ldap_search_filter = '(mail=' + email + ')'
+        else:
+            ldap_search_filter = '(uid=' + sub + ')'
         conn = Connection(server, ldap_user, ldap_password, auto_bind=True)
         profile_found = conn.search(ldap_search_base,
                                     ldap_search_filter,
                                     attributes=[
-                                        'isMemberOf', 'uid'
+                                        'isMemberOf', 'uid', 'mail'
                                     ])
         if profile_found:
             attributes = conn.entries[0]
         else:
-            attributes = []
+            attributes = None
         conn.unbind()
         return attributes
+
+    def check_username_claim(self, claimlist, resp_json):
+        """
+        CILogonOAuthenticator expects either ePPN or email to determine JH container user name
+        To handle cases where only sub information is available; fetch email from LDAP and set it as username
+        Address issues reported her:
+        https://fabric-testbed.atlassian.net/browse/FIP-714
+        https://fabric-testbed.atlassian.net/browse/FIP-715
+        https://fabric-testbed.atlassian.net/browse/FIP-724
+        """
+        username = None
+        for claim in claimlist:
+            username = resp_json.get(claim)
+            if username:
+                return username
+
+        # Hack when user claims only has sub
+        email = resp_json.get("email")
+        sub = resp_json.get("sub")
+        if sub is not None:
+            attributelist = self.get_ldap_attributes(email, sub)
+            if attributelist is not None:
+                self.log.info(f"attributelist acquired for determining user name. {attributelist}")
+                username = str(attributelist['mail'])
+
+        if not username:
+            if len(claimlist) < 2:
+                self.log.error(
+                    "Username claim %s not found in response: %s",
+                    self.username_claim,
+                    sorted(resp_json.keys()),
+                )
+            else:
+                self.log.error(
+                    "No username claim from %r in response: %s",
+                    claimlist,
+                    sorted(resp_json.keys()),
+                )
+            raise web.HTTPError(500, "Failed to get username from CILogon")
+        return username
