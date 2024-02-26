@@ -18,7 +18,7 @@ keywords = ["Swagger", "Fabric OAuth Authenticator"]
 requires-python = '>=3.7'
 dependencies = [
     "jupyterhub>=1.0",
-    "oauthenticator",
+    "oauthenticator==15.1.0",
     "ldap3"
     ]
 
