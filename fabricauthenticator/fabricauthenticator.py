@@ -150,11 +150,11 @@ class FabricAuthenticator(oauthenticator.CILogonOAuthenticator):
         ldap_user = os.getenv('LDAP_USER', '')
         ldap_password = os.getenv('LDAP_PASSWORD', '')
         ldap_search_base = os.getenv('LDAP_SEARCH_BASE', '')
-        # Always search on email if available
-        if email is not None:
-            ldap_search_filter = '(mail=' + email + ')'
-        else:
+        # Always search on sub if available
+        if sub is not None:
             ldap_search_filter = '(uid=' + sub + ')'
+        else:
+            ldap_search_filter = '(mail=' + email + ')'
         conn = Connection(server, ldap_user, ldap_password, auto_bind=True)
         profile_found = conn.search(ldap_search_base,
                                     ldap_search_filter,
@@ -177,20 +177,27 @@ class FabricAuthenticator(oauthenticator.CILogonOAuthenticator):
         https://fabric-testbed.atlassian.net/browse/FIP-715
         https://fabric-testbed.atlassian.net/browse/FIP-724
         """
+        # HACK for handling email aliases; always determine the email from LDAP by querying on sub
         username = None
-        for claim in claimlist:
-            username = resp_json.get(claim)
-            if username:
-                return username
+        #for claim in claimlist:
+        #    username = resp_json.get(claim)
+        #    if username:
+        #        return username
 
         # Hack when user claims only has sub
         email = resp_json.get("email")
         sub = resp_json.get("sub")
         if sub is not None:
-            attributelist = self.get_ldap_attributes(email, sub)
+            attributelist = self.get_ldap_attributes(None, sub)
             if attributelist is not None:
                 self.log.info(f"attributelist acquired for determining user name. {attributelist}")
-                username = str(attributelist['mail'])
+                if len(attributelist['mail']) == 1:
+                    username = str(attributelist['mail'])
+                else:
+                    if email is None or email not in attributelist['mail']:
+                        username = str(attributelist['mail'][0])
+                    else:
+                        username = email
 
         if not username:
             if len(claimlist) < 2:
