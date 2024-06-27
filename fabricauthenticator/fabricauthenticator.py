@@ -202,15 +202,11 @@ class FabricAuthenticator(oauthenticator.CILogonOAuthenticator):
         if not username:
             if len(claimlist) < 2:
                 self.log.error(
-                    "Username claim %s not found in response: %s",
-                    self.username_claim,
-                    sorted(resp_json.keys()),
+                    f"Sub: {sub} Username claim: '{self.username_claim}' not found in response: {resp_json} claimlist: {claimlist}"
                 )
             else:
                 self.log.error(
-                    "No username claim from %r in response: %s",
-                    claimlist,
-                    sorted(resp_json.keys()),
+                    f"Sub: {sub} No username claim: '{self.username_claim}' found in response: {resp_json} claimlist: {claimlist}"
                 )
             raise web.HTTPError(500, "Failed to get username from CILogon")
         return username
