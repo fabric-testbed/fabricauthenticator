@@ -234,9 +234,9 @@ class FabricAuthenticator(oauthenticator.CILogonOAuthenticator):
         return attributes
 
     def check_username_claim(self, claimlist, resp_json):
-        return self.check_username_claim_core_api(claimlist=claimlist, resp_json=resp_json)
+        return self.check_username_claim_core_api(resp_json=resp_json)
 
-    def check_username_claim_core_api(self, claimlist: List[str], resp_json: Dict[str, Union[str, List[str]]]) -> str:
+    def check_username_claim_core_api(self, resp_json: Dict[str, Union[str, List[str]]]) -> str:
         """
         Determine the JupyterHub username based on OIDC claims or Core API lookup using the user's `sub`.
 
@@ -245,7 +245,6 @@ class FabricAuthenticator(oauthenticator.CILogonOAuthenticator):
         2. Fallback to email if available in OIDC claims.
 
         Args:
-            claimlist (List[str]): List of configured claims to check (unused here but kept for backward compatibility).
             resp_json (Dict[str, Union[str, List[str]]]): Userinfo from CILogon.
 
         Returns:
@@ -268,7 +267,7 @@ class FabricAuthenticator(oauthenticator.CILogonOAuthenticator):
         if sub:
             try:
                 user_info = self.get_fabric_user_info(sub=sub, token=core_api_token,
-                                                      api_server_url=f"https://{core_api_host}")
+                                                      api_server_url=core_api_host)
                 results = user_info.get("results", [])
                 if results:
                     uuid = results[0].get("uuid")
