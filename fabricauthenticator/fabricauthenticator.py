@@ -35,10 +35,12 @@ class FabricAuthenticator(oauthenticator.CILogonOAuthenticator):
 
         user_email = cilogon_user.get("email")
         user_sub = cilogon_user.get("sub")
-        if not self.is_in_allowed_cou_core_api(user_sub):
+        status, roles = self.is_in_allowed_cou_core_api(user_sub)
+        if not status:
             self.log.warn("FABRIC user {} is not in {}".format(userdict["name"], JUPYTERHUB_COU))
             raise web.HTTPError(403, "Access not allowed")
         self.log.debug("FABRIC user authenticated")
+        auth_state['fabric_roles'] = roles
         return userdict
 
     async def pre_spawn_start(self, user, spawner):
@@ -113,7 +115,7 @@ class FabricAuthenticator(oauthenticator.CILogonOAuthenticator):
                 futures.append(self.maybe_future(obj=result))
             await asyncio.gather(*futures)
 
-    def is_in_allowed_cou_core_api(self, sub: str) -> bool:
+    def is_in_allowed_cou_core_api(self, sub: str) -> tuple[bool, list]:
         """
         Checks if a user is in the Comanage JUPYTERHUB COU based on roles from the FABRIC Core API.
 
@@ -130,21 +132,21 @@ class FabricAuthenticator(oauthenticator.CILogonOAuthenticator):
             user_info = self.get_fabric_user_info(sub=sub, token=core_api_token, api_server_url=core_api_host)
         except Exception as e:
             self.log.error(f"Failed to fetch user info from core API: {e}")
-            return False
+            return False, []
 
         results = user_info.get("results", [])
         if not results:
             self.log.warning(f"No results found in Core API for sub: {sub}")
-            return False
+            return False, []
 
         roles = results[0].get("roles", [])
         for role in roles:
             if role.get("name") == JUPYTERHUB_ROLE:
                 self.log.debug(f"User has required role: {JUPYTERHUB_ROLE}")
-                return True
+                return True, roles
 
         self.log.debug(f"User does not have required role: {JUPYTERHUB_ROLE}")
-        return False
+        return False, []
 
     def is_in_allowed_cou(self, email, sub):
         """ Checks if user is in Comanage JUPYTERHUB COU.
